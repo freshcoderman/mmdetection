@@ -398,6 +398,15 @@ class MultiImageMixDataset:
     def __len__(self):
         return self.num_samples
 
+    def viz(self, results):
+        img = results['img'].data.detach().cpu().permute(1,2,0).numpy().copy().astype(np.uint8)
+        bboxes = results['gt_bboxes'].data.detach().cpu().numpy().astype(np.int32).tolist()
+        import cv2
+        for bbox in bboxes:
+            cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0,0,255), 2)
+            cv2.circle(img, (bbox[4], bbox[5]), 6, (128,128,0), -1)
+        cv2.imwrite('test.jpg', img)
+
     def __getitem__(self, idx):
         results = copy.deepcopy(self.dataset[idx])
         for (transform, transform_type) in zip(self.pipeline,
@@ -440,7 +449,7 @@ class MultiImageMixDataset:
 
             if 'mix_results' in results:
                 results.pop('mix_results')
-
+        # self.viz(results)
         return results
 
     def update_skip_type_keys(self, skip_type_keys):

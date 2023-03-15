@@ -255,6 +255,16 @@ class Resize:
                 bboxes[:, 1::2] = np.clip(bboxes[:, 1::2], 0, img_shape[0])
             results[key] = bboxes
 
+    def _resize_anchors(self, results):
+        """Resize anchors with ``results['scale_factor']``."""
+        for key in results.get('anchor_fields', []):
+            anchors = results[key] * results['scale_factor'][:2]
+            if self.bbox_clip_border:
+                img_shape = results['img_shape']
+                anchors[:, 0::2] = np.clip(anchors[:, 0::2], 0, img_shape[1])
+                anchors[:, 1::2] = np.clip(anchors[:, 1::2], 0, img_shape[0])
+            results[key] = anchors
+
     def _resize_masks(self, results):
         """Resize masks with ``results['scale']``"""
         for key in results.get('mask_fields', []):
@@ -315,6 +325,7 @@ class Resize:
 
         self._resize_img(results)
         self._resize_bboxes(results)
+        self._resize_anchors(results)
         self._resize_masks(results)
         self._resize_seg(results)
         return results
@@ -427,6 +438,38 @@ class RandomFlip:
             raise ValueError(f"Invalid flipping direction '{direction}'")
         return flipped
 
+    def anchor_flip(self, anchors, img_shape, direction):
+        """Flip anchors horizontally.
+
+        Args:
+            anchors (numpy.ndarray): anchors, shape (..., k)
+            img_shape (tuple[int]): Image shape (height, width)
+            direction (str): Flip direction. Options are 'horizontal',
+                'vertical'.
+
+        Returns:
+            numpy.ndarray: Flipped bounding boxes.
+        """
+
+        assert anchors.shape[-1] % 2 == 0
+        flipped = anchors.copy()
+        if direction == 'horizontal':
+            w = img_shape[1]
+            flipped[..., 0::2] = w - anchors[..., 0::2]
+        elif direction == 'vertical':
+            h = img_shape[0]
+            flipped[..., 1::2] = h - anchors[..., 1::2]
+        elif direction == 'diagonal':
+            w = img_shape[1]
+            h = img_shape[0]
+            flipped[..., 0::2] = w - anchors[..., 0::2]
+            flipped[..., 1::2] = h - anchors[..., 1::2]
+        else:
+            raise ValueError(f"Invalid flipping direction '{direction}'")
+        return flipped
+
+
+
     def __call__(self, results):
         """Call function to flip bounding boxes, masks, semantic segmentation
         maps.
@@ -472,6 +515,12 @@ class RandomFlip:
                 results[key] = self.bbox_flip(results[key],
                                               results['img_shape'],
                                               results['flip_direction'])
+            # flip anchors
+            for key in results.get('anchor_fields', []):
+                results[key] = self.anchor_flip(results[key],
+                                              results['img_shape'],
+                                              results['flip_direction'])
+
             # flip masks
             for key in results.get('mask_fields', []):
                 results[key] = results[key].flip(results['flip_direction'])

@@ -232,13 +232,17 @@ class LoadAnnotations:
                  with_seg=False,
                  poly2mask=True,
                  denorm_bbox=False,
+                 denorm_anchor=False,
+                 with_anchor=False,
                  file_client_args=dict(backend='disk')):
         self.with_bbox = with_bbox
+        self.with_anchor = with_anchor
         self.with_label = with_label
         self.with_mask = with_mask
         self.with_seg = with_seg
         self.poly2mask = poly2mask
         self.denorm_bbox = denorm_bbox
+        self.denorm_anchor = denorm_anchor
         self.file_client_args = file_client_args.copy()
         self.file_client = None
 
@@ -271,6 +275,34 @@ class LoadAnnotations:
         gt_is_group_ofs = ann_info.get('gt_is_group_ofs', None)
         if gt_is_group_ofs is not None:
             results['gt_is_group_ofs'] = gt_is_group_ofs.copy()
+
+        return results
+
+    def _load_anchors(self, results):
+        """Private function to load anchors.
+
+        Args:
+            results (dict): Result dict from :obj:`mmdet.CustomDataset`.
+
+        Returns:
+            dict: The dict contains loaded bounding anchors.
+        """
+
+        ann_info = results['ann_info']
+        results['gt_anchors'] = ann_info['anchors'].copy()
+
+        if self.denorm_anchor:
+            anchor_num = results['gt_anchors'].shape[0]
+            if anchor_num != 0:
+                h, w = results['img_shape'][:2]
+                results['gt_anchors'][:, 0::2] *= w
+                results['gt_anchors'][:, 1::2] *= h
+
+        gt_anchors_ignore = ann_info.get('anchors_ignore', None)
+        if gt_anchors_ignore is not None:
+            results['gt_anchors_ignore'] = gt_anchors_ignore.copy()
+            results['anchor_fields'].append('gt_anchors_ignore')
+        results['anchor_fields'].append('gt_anchors')
 
         return results
 
@@ -392,6 +424,8 @@ class LoadAnnotations:
             results = self._load_bboxes(results)
             if results is None:
                 return None
+        if self.with_anchor:
+            results = self._load_anchors(results)
         if self.with_label:
             results = self._load_labels(results)
         if self.with_mask:
@@ -631,6 +665,8 @@ class FilterAnnotations:
         for key in keys:
             if key in results:
                 results[key] = results[key][keep]
+        if 'gt_anchors' in results:
+            results['gt_anchors'] = results['gt_anchors'][keep]
         if keep.size == 0:
             if self.keep_empty:
                 return None

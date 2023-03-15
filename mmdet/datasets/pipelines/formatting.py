@@ -240,9 +240,14 @@ class DefaultFormatBundle:
                 img = to_tensor(img).permute(2, 0, 1).contiguous()
             results['img'] = DC(
                 img, padding_value=self.pad_val['img'], stack=True)
-        for key in ['proposals', 'gt_bboxes', 'gt_bboxes_ignore', 'gt_labels']:
+        for key in ['proposals', 'gt_bboxes', 'gt_bboxes_ignore', 'gt_labels', 'gt_anchors']:
             if key not in results:
                 continue
+            if key == 'gt_bboxes':
+                if 'gt_anchors' in results:
+                    results[key] = DC(torch.cat(
+                    (to_tensor(results[key]), to_tensor(results['gt_anchors'])), dim=-1))
+                    continue
             results[key] = DC(to_tensor(results[key]))
         if 'gt_masks' in results:
             results['gt_masks'] = DC(
@@ -284,8 +289,6 @@ class DefaultFormatBundle:
     def __repr__(self):
         return self.__class__.__name__ + \
                f'(img_to_float={self.img_to_float})'
-
-
 @PIPELINES.register_module()
 class Collect:
     """Collect data from the loader relevant to the specific task.
