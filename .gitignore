@@ -1,3 +1,11 @@
+# Data folders
+linke06/
+linke06_ori/
+results_06/
+results_06_2/
+*.jpg
+*.png
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
